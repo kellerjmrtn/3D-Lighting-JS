@@ -1,3 +1,26 @@
+function print4x4Matrix(matrix){
+  let str = "";
+
+  for(let i = 0; i < 4; i++){
+    str += "|  ";
+
+    for(let j = 0; j < 4; j++){
+      let val = matrix[4 * i + j];
+
+      if(val >= 0){
+        str += val.toFixed(2) + "  ";
+      } else {
+        str += val.toFixed(2) + " ";
+      }
+      
+    }
+
+    str += "|\n";
+  }
+
+  console.log(str);
+}
+
 
 export class WrappedGL {
 
@@ -352,13 +375,30 @@ export class Face {
     this.faceTransform.translate(x,y,z);
     return this;
   }
+
+  getVertexCoords(){
+    let m = this.faceTransform.matrix;
+    let v = this.vertexData;
+    let vertices = [];
+
+    for(let i = 0; i < 4; i++){
+      let x = m[0] * v[3 * i] + m[1] * v[3 * i + 1] + m[2] * v[3 * i + 2] + m[3];
+      let y = m[4] * v[3 * i] + m[5] * v[3 * i + 1] + m[6] * v[3 * i + 2] + m[7];
+      let z = m[8] * v[3 * i] + m[9] * v[3 * i + 1] + m[10] * v[3 * i + 2] + m[11];
+
+      vertices.push([x,y,z]);
+    }
+    
+    return vertices;
+  }
 }
 
 let i = 0;
 
 export class SceneObject {
-  constructor(wgl){
+  constructor(wgl, name = ""){
     this.id = i++;
+    this.name = name;
     this.faces = [];
     this.wgl = wgl;
     this.length = 0;
@@ -372,10 +412,79 @@ export class SceneObject {
     this.vx = 0;
     this.vy = 0;
     this.vz = 0;
+    this.hitBox = {
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+
+      maxX: 0,
+      maxY: 0,
+      maxZ: 0
+    } 
   }
 
   update(){
     this.wgl.updateLights(this);
+    this.updateHitbox();
+  }
+
+  updateHitbox(){
+    let scaleXYZ = [Math.abs(this.transform.matrix[0]) + Math.abs(this.transform.matrix[4]) + Math.abs(this.transform.matrix[8]), 
+                    Math.abs(this.transform.matrix[1]) + Math.abs(this.transform.matrix[5]) + Math.abs(this.transform.matrix[9]),
+                    Math.abs(this.transform.matrix[2]) + Math.abs(this.transform.matrix[6]) + Math.abs(this.transform.matrix[10])];
+    let objXYZ = this.getPosition();
+    let hitBox = {
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+
+      maxX: 0,
+      maxY: 0,
+      maxZ: 0
+    }
+
+    if(this.length > 0){
+      if(this.name == "Yellow Box"){
+        print4x4Matrix(this.transform.matrix);
+      }
+      let coords = this.faces[0].getVertexCoords();
+      hitBox.minX = coords[0][0] * scaleXYZ[0] + objXYZ[0];
+      hitBox.maxX = coords[0][0] * scaleXYZ[0] + objXYZ[0];
+      hitBox.minY = coords[0][1] * scaleXYZ[1] + objXYZ[1];
+      hitBox.maxY = coords[0][1] * scaleXYZ[1] + objXYZ[1];
+      hitBox.minZ = coords[0][2] * scaleXYZ[2] + objXYZ[2];
+      hitBox.maxZ = coords[0][2] * scaleXYZ[2] + objXYZ[2];
+
+      for(let c of this.faces){
+        coords = c.getVertexCoords();
+
+        for(let p of coords){
+          let x = p[0] * scaleXYZ[0] + objXYZ[0];
+          let y = p[1] * scaleXYZ[1] + objXYZ[1];
+          let z = p[2] * scaleXYZ[2] + objXYZ[2];
+
+          if(x < hitBox.minX){
+            hitBox.minX = x;
+          } else if(x > hitBox.maxX){
+            hitBox.maxX = x;
+          }
+
+          if(y < hitBox.minY){
+            hitBox.minY = y;
+          } else if(y > hitBox.maxY){
+            hitBox.maxY = y;
+          }
+
+          if(z < hitBox.minZ){
+            hitBox.minZ = z;
+          } else if(z > hitBox.maxZ){
+            hitBox.maxZ = z;
+          }
+        }
+      }
+    }
+
+    this.hitBox = hitBox;
   }
 
   getPosition(){
@@ -391,7 +500,6 @@ export class SceneObject {
     face.color = this.shapeColor;
     face.glossCoeffecient = this.glossCoeffecient;
     this.faces.push(face);
-    this.currentFace = face;
     this.length++;
     return face;
   }
@@ -460,7 +568,7 @@ export class SceneObject {
     this.addFace().translate(1,0,0).rotateY(90);
     this.addFace().translate(0,0,-1).rotateX(90);
     this.addFace().translate(0,1,0).rotateX(-90);
-    this.addFace().translate(0,1,-1).rotateX(180);
+    /this.addFace().translate(0,1,-1).rotateX(180);
   }
 
   lightOn(){

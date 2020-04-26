@@ -23,11 +23,10 @@ function main() {
   let ft = new Transform();
   setDefaultTransforms();
 
-  let mainLight = new SceneObject(wgl);
+  let mainLight = new SceneObject(wgl, "Main Light");
   mainLight.translate(10,15,10);
-  mainLight.createCube();
   mainLight.lightColor = [.6,.6,.6];
-  mainLight.lightBrightness = 2.5;
+  mainLight.lightBrightness = 3;
   mainLight.lightOn();
   
 
@@ -96,10 +95,12 @@ function main() {
       
       cube.draw();
       cube2.draw();
-      cube3.draw();
-      //cube4.draw();
       background.draw();
       mainLight.draw();
+
+      //console.log(cube.transform);
+      //console.log(cube.hitBox);
+      console.log(cube.hitBox);
 
       if(pause || noMove.length == gravityObjects.length){
         return;
@@ -108,29 +109,40 @@ function main() {
       requestAnimationFrame(draw); 
     }
 
-    let background = new SceneObject(wgl);
+    let background = new SceneObject(wgl, "Background");
     background.setColor(GRAY);
-    background.setGloss(2);
+    background.setGloss(1);
     background.translate(-3, -3, -3).scale(8,8,8);
     background.addFace();
     background.addFace().translate(0,0,1).rotateY(90);
     background.addFace().translate(0,0,1).rotateX(-90);
 
-    let cube = new SceneObject(wgl);
+    let cube = new SceneObject(wgl, "Yellow Box");
     cube.setColor(YELLOW);
     cube.setGloss(2.0);
     cube.createCube();
-    cube.translate(1,2,2.5).scale(2,2,2);
+    //cube.translate(1,2,2.5).scale(2,2,2);
     cube.lightColor = YELLOW;
     cube.lightBrightness = 0.8;
     cube.lightOffset = [1,1,-1];
-    cube.vy = -0.08;
-    cube.vx = -0.03;
-    cube.vz = -0.04;
+    //cube.vy = -0.08;
+    //cube.vx = -0.03;
+    //cube.vz = -0.04;
     cube.lightOn();
+    cube.translate(0,0,0);
+    cube.scale(1,1,1);
+    cube.rotateX(30);
+
+    let cube2 = new SceneObject(wgl, "Red Box");
+    cube2.setColor(RED);
+    cube2.createCube();
+    cube2.translate(0,0,0);
+    cube2.scale(.2,.2,.2);
+    //cube2.rotateX(30);    
+    
     
  
-    let cube2 = new SceneObject(wgl);
+    /*let cube2 = new SceneObject(wgl);
     cube2.setColor(WHITE);
     cube2.setGloss(1.0);
     cube2.createCube();
@@ -154,13 +166,13 @@ function main() {
     cube3.vx = -0.2;
     cube3.vy = 0.2;
     cube3.vz = -0.04;
-    cube3.lightOn();
+    cube3.lightOn();*/
 
     /*let cube4 = new SceneObject(wgl);
     cube4.setColor(GREEN);
     cube4.createCube();*/
 
-    let gravityObjects = [cube, cube2, cube3];
+    let gravityObjects = [cube2/*, cube2, cube3*/];
     let noMove = [];
 
     draw();

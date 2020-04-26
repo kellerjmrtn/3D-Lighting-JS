@@ -39,7 +39,7 @@ void main(void) {
     H[i] = normalize(normalize(L[i]) - normalize(eyePosition));
 
     diffuse[i] *= max(0.0, dot(N, L[i]));
-    specular[i] *= pow(max(0.0, dot(N, H[i])), 512.0 / str[i]) * glossy;
+    specular[i] *= pow(max(0.0, dot(N, H[i])), 256.0 / str[i]) * glossy;
 
     finalColor += diffuse[i] + specular[i];
   }
