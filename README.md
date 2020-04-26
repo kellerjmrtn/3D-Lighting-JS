@@ -1,6 +1,6 @@
-#3D JavaScript Renderer w/ WebGL
+# 3D JavaScript Renderer w/ WebGL
 
-####A few features of this project:
+#### A few features of this project:
  - The code supports an indefinite number of light sources. Just call the lightOn() method on any object in the scene to turn that object into a point light source!
  - Vertex and Fragment shaders are dynamically rewritten and recompiled as lights are removed and added to the scene
  - Both Diffuse and Specular effects have been added
