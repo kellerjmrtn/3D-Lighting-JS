@@ -8,9 +8,9 @@ function print4x4Matrix(matrix){
       let val = matrix[4 * i + j];
 
       if(val >= 0){
-        str += val.toFixed(2) + "  ";
+        str += val.toFixed(10) + "  ";
       } else {
-        str += val.toFixed(2) + " ";
+        str += val.toFixed(10) + " ";
       }
       
     }
@@ -377,19 +377,183 @@ export class Face {
   }
 
   getVertexCoords(){
-    let m = this.faceTransform.matrix;
+    let m = this.faceTransform;
     let v = this.vertexData;
     let vertices = [];
 
     for(let i = 0; i < 4; i++){
-      let x = m[0] * v[3 * i] + m[1] * v[3 * i + 1] + m[2] * v[3 * i + 2] + m[3];
-      let y = m[4] * v[3 * i] + m[5] * v[3 * i + 1] + m[6] * v[3 * i + 2] + m[7];
-      let z = m[8] * v[3 * i] + m[9] * v[3 * i + 1] + m[10] * v[3 * i + 2] + m[11];
-
-      vertices.push([x,y,z]);
+      vertices.push(m.transformVertex([v[3 * i], v[3 * i + 1], v[3 * i + 2]]));
     }
-    
+
     return vertices;
+  }
+
+  getNormalVector(){
+    return this.faceTransform.transformVertex(this.normalData[0], this.normalData[1], this.normalData[2]);
+  }
+}
+
+export class GlobalScene {
+  constructor(){
+    this.sceneObjects = [];
+    this.collisionObjects = [];
+  }
+
+  static gravityStrength = -9.81// -0.001531;
+  static timeStep = 0.0125;
+
+  push(sceneObject){
+    this.sceneObjects.push(sceneObject);
+    if(sceneObject.collisionDetection){
+      this.collisionObjects.push(sceneObject);
+    }
+  }
+
+  getSceneObjects(){
+    return this.sceneObjects;
+  }
+
+  update(){
+    this.hitDetection();
+
+    for(let c of this.sceneObjects){
+      c.update();
+    }
+
+  }
+
+  draw(){
+    for(let c of this.sceneObjects){
+      c.draw();
+    }
+  }
+
+  hitDetection(){
+    let tempSceneObjects = this.collisionObjects;
+    let collisions = [];
+
+    for(let c of this.collisionObjects){
+      for(let o of tempSceneObjects){
+        if(o.id != c.id){
+          // Check collisions
+          let oHitBox = o.hitBox;
+          let cHitBox = c.hitBox;
+
+          if(oHitBox.minX <= cHitBox.maxX && oHitBox.maxX >= cHitBox.minX && oHitBox.minY <= cHitBox.maxY && oHitBox.maxY >= cHitBox.minY && oHitBox.minZ <= cHitBox.maxZ && oHitBox.maxZ >= cHitBox.minZ){
+            // collision has occured
+            
+            let min = 100000000000000;
+            let dirO, dirC;
+            if(Math.abs(oHitBox.minX - cHitBox.maxX) < min){
+              min = Math.abs(oHitBox.minX - cHitBox.maxX);
+              dirO = "X-min";
+              dirC = "X-max";
+            }
+            if(Math.abs(oHitBox.maxX - cHitBox.minX) < min){
+              min = Math.abs(oHitBox.maxX - cHitBox.minX);
+              dirO = "X-max";
+              dirC = "X-min";
+            }
+            if(Math.abs(oHitBox.minY - cHitBox.maxY) < min){
+              min = Math.abs(oHitBox.minY - cHitBox.maxY);
+              dirO = "Y-min";
+              dirC = "Y-max";
+            }
+            if(Math.abs(oHitBox.minY - cHitBox.maxY) < min){
+              min = Math.abs(oHitBox.maxY - cHitBox.minY);
+              dirO = "Y-max";
+              dirC = "Y-min";
+            }
+            if(Math.abs(oHitBox.minZ - cHitBox.maxZ) < min){
+              min = Math.abs(oHitBox.minZ - cHitBox.maxZ);
+              dirO = "Z-min";
+              dirC = "Z-max";
+            }
+            if(Math.abs(oHitBox.minZ - cHitBox.maxZ) < min){
+              min = Math.abs(oHitBox.maxZ - cHitBox.minZ);
+              dirO = "Z-max";
+              dirC = "Z-min";
+            }
+
+            collisions.push([o, c, dirO, dirC]);
+          }
+        }
+      }
+
+      tempSceneObjects = tempSceneObjects.filter(function(sceneObj){
+        return sceneObj.id != c.id;
+      });
+    }
+
+    // Collisions now holds all instances of a collision
+    for(let c of collisions){
+      let c0 = c[0];
+      let c1 = c[1];
+      let dir0 = c[2];
+      let dir1 = c[3];
+      let m0 = c0.mass;
+      let m1 = c1.mass;
+
+      if(dir0[0] == "Y"){
+        // Some quick error correction
+        c0.translate(0, c1.hitBox.maxY - c0.hitBox.minY, 0);
+        
+        c0.vy -= c0.vy * GlobalScene.timeStep * 3;
+        c1.vy -= c1.vy * GlobalScene.timeStep * 3;
+
+        // calculate new Y velocities
+        let uy0 = c0.vy;
+        let uy1 = c1.vy;
+
+        let vy0 = (uy0 * (m0 - m1) / (m0 + m1) + uy1 * (2 * m1) / (m0 + m1)) * c0.bounciness * c1.bounciness;
+        let vy1 = (uy0 * (2 * m0) / (m0 + m1) + uy1 * (m1 - m0) / (m0 + m1)) * c0.bounciness * c1.bounciness;
+
+        // set new Y velocity
+        c0.vy = vy0;
+        c1.vy = vy1;
+
+        // Apply friction to orthogonal directions
+        c0.vx = c0.vx * c0.friction * c1.friction;
+        c1.vx = c1.vx * c0.friction * c1.friction;
+        c0.vz = c0.vz * c0.friction * c1.friction;
+        c1.vz = c1.vz * c0.friction * c1.friction;
+        
+      } else if(dir0[0] == "X"){
+        // Calculate new X velocites
+        let ux0 = c0.vx;
+        let ux1 = c1.vx;
+
+        let vx0 = ux0 * (m0 - m1) / (m0 + m1) + ux1 * (2 * m1) / (m0 + m1) * c0.bounciness * c1.bounciness;
+        let vx1 = ux0 * (2 * m0) / (m0 + m1) + ux1 * (m1 - m0) / (m0 + m1) * c0.bounciness * c1.bounciness;
+
+        // set new X velocity
+        c0.vx = vx0;
+        c1.vx = vx1;
+
+        // Apply friction to orthogonal directions
+        c0.vy = c0.vy * c0.friction * c1.friction;
+        c1.vy = c1.vy * c0.friction * c1.friction;
+        c0.vz = c0.vz * c0.friction * c1.friction;
+        c1.vz = c1.vz * c0.friction * c1.friction;
+      } else if(dir0[0] == "Z"){
+        // Calculate new Z velocites
+        let uz0 = c0.vz;
+        let uz1 = c1.vz;
+
+        let vz0 = uz0 * (m0 - m1) / (m0 + m1) + uz1 * (2 * m1) / (m0 + m1) * c0.bounciness * c1.bounciness;
+        let vz1 = uz0 * (2 * m0) / (m0 + m1) + uz1 * (m1 - m0) / (m0 + m1) * c0.bounciness * c1.bounciness;
+
+        // set new Z velocity
+        c0.vz = vz0;
+        c1.vz = vz1;
+
+        // Apply friction to orthogonal directions
+        c0.vx = c0.vx * c0.friction * c1.friction;
+        c1.vx = c1.vx * c0.friction * c1.friction;
+        c0.vy = c0.vy * c0.friction * c1.friction;
+        c1.vy = c1.vy * c0.friction * c1.friction;
+      }
+    }
   }
 }
 
@@ -397,21 +561,37 @@ let i = 0;
 
 export class SceneObject {
   constructor(wgl, name = ""){
+    // general stuff
     this.id = i++;
     this.name = name;
-    this.faces = [];
     this.wgl = wgl;
     this.length = 0;
+    this.faces = [];
+    
+    // Locations and colors
+    this.transform = new Transform();
     this.shapeColor = [0,0,0];
     this.glossCoeffecient = 0.0;
-    this.transform = new Transform();
+    
+    // Lighting
     this.isLight = false;
     this.lightColor = [1.0, 1.0, 1.0];
     this.lightBrightness = 1.0;
     this.lightOffset = [0,0,0];
+
+    // Movement & Physics 
+    this.gravity = true;
+    this.mass = 1;
+    this.collisionDetection = true;
+    this.bounciness = 0.7;
+    this.friction = 0.8;
+
     this.vx = 0;
     this.vy = 0;
     this.vz = 0;
+    this.ax = 0;
+    this.ay = 0;
+    this.az = 0;
     this.hitBox = {
       minX: 0,
       minY: 0,
@@ -424,15 +604,26 @@ export class SceneObject {
   }
 
   update(){
+    this.updateStatics();
+    this.updateMotion();
+  }
+
+  updateStatics(){
     this.wgl.updateLights(this);
+  }
+
+  updateMotion(){
+    this.preTranslate(this.vx * GlobalScene.timeStep, this.vy * GlobalScene.timeStep, this.vz * GlobalScene.timeStep);
+
+    if(this.gravity){
+      this.vy += GlobalScene.gravityStrength * GlobalScene.timeStep;
+      this.ay = GlobalScene.gravityStrength;
+    }
+
     this.updateHitbox();
   }
 
   updateHitbox(){
-    let scaleXYZ = [Math.abs(this.transform.matrix[0]) + Math.abs(this.transform.matrix[4]) + Math.abs(this.transform.matrix[8]), 
-                    Math.abs(this.transform.matrix[1]) + Math.abs(this.transform.matrix[5]) + Math.abs(this.transform.matrix[9]),
-                    Math.abs(this.transform.matrix[2]) + Math.abs(this.transform.matrix[6]) + Math.abs(this.transform.matrix[10])];
-    let objXYZ = this.getPosition();
     let hitBox = {
       minX: 0,
       minY: 0,
@@ -444,24 +635,24 @@ export class SceneObject {
     }
 
     if(this.length > 0){
-      if(this.name == "Yellow Box"){
-        print4x4Matrix(this.transform.matrix);
-      }
       let coords = this.faces[0].getVertexCoords();
-      hitBox.minX = coords[0][0] * scaleXYZ[0] + objXYZ[0];
-      hitBox.maxX = coords[0][0] * scaleXYZ[0] + objXYZ[0];
-      hitBox.minY = coords[0][1] * scaleXYZ[1] + objXYZ[1];
-      hitBox.maxY = coords[0][1] * scaleXYZ[1] + objXYZ[1];
-      hitBox.minZ = coords[0][2] * scaleXYZ[2] + objXYZ[2];
-      hitBox.maxZ = coords[0][2] * scaleXYZ[2] + objXYZ[2];
+      let t = this.transform;
+      let x, y, z;
+
+      hitBox.minX = t.transformVertex(coords[0])[0];
+      hitBox.maxX = hitBox.minX;
+      hitBox.minY = t.transformVertex(coords[0])[1];
+      hitBox.maxY = hitBox.minY;
+      hitBox.minZ = t.transformVertex(coords[0])[2];
+      hitBox.maxZ = hitBox.minZ;
 
       for(let c of this.faces){
         coords = c.getVertexCoords();
 
         for(let p of coords){
-          let x = p[0] * scaleXYZ[0] + objXYZ[0];
-          let y = p[1] * scaleXYZ[1] + objXYZ[1];
-          let z = p[2] * scaleXYZ[2] + objXYZ[2];
+          x = t.transformVertex(p)[0];
+          y = t.transformVertex(p)[1];
+          z = t.transformVertex(p)[2];
 
           if(x < hitBox.minX){
             hitBox.minX = x;
@@ -485,6 +676,9 @@ export class SceneObject {
     }
 
     this.hitBox = hitBox;
+    this.lightOffset[0] = (hitBox.maxX - hitBox.minX) / 2;
+    this.lightOffset[1] = (hitBox.maxY - hitBox.minY) / 2;
+    this.lightOffset[2] = -1 * (hitBox.maxZ - hitBox.minZ) / 2;
   }
 
   getPosition(){
@@ -504,33 +698,33 @@ export class SceneObject {
     return face;
   }
 
+  preTranslate(x, y, z){
+    this.transform.preTranslate(x, y, z);
+    return this;
+  }
+
   translate(x, y, z){
     this.transform.translate(x, y, z);
-    this.update();
     return this;
   }
 
   rotateX(deg){
     this.transform.rotateX(deg);
-    this.update();
     return this;
   }
 
   rotateY(deg){
     this.transform.rotateY(deg);
-    this.update();
     return this;
   }
 
   rotateZ(deg){
     this.transform.rotateZ(deg);
-    this.update();
     return this;
   }
 
   scale(sx, sy, sz){
     this.transform.scale(sx, sy, sz);
-    this.update();
     return this;
   }
 
@@ -568,7 +762,7 @@ export class SceneObject {
     this.addFace().translate(1,0,0).rotateY(90);
     this.addFace().translate(0,0,-1).rotateX(90);
     this.addFace().translate(0,1,0).rotateX(-90);
-    /this.addFace().translate(0,1,-1).rotateX(180);
+    this.addFace().translate(0,1,-1).rotateX(180);
   }
 
   lightOn(){
@@ -619,19 +813,28 @@ export class Transform {
     return c;
   }
   
+  preMultiplyBy(that){
+    this.matrix = Transform.multiply(that.matrix, this.matrix);
+  }
   multiplyBy(that) {
     this.matrix = Transform.multiply(this.matrix, that.matrix);
   }
   
   transformVertex(v) {
-    v.push(1);
+    let vv = [...v];
+    vv.push(1);
     let tv = [0, 0, 0, 0];
     
     for (let i = 0; i < 4; i++)
       for (let j = 0; j < 4; j++)
-        tv[i] += this.matrix[i * 4 + j] * v[j];
+        tv[i] += this.matrix[i * 4 + j] * vv[j];
     
     return [tv[0] / tv[3], tv[1] / tv[3], tv[2] / tv[3]];
+  }
+
+  preTranslate(tx, ty, tz){
+    this.matrix = Transform.multiply([1,0,0,tx,  0,1,0,ty,  0,0,1,tz, 0,0,0,1], this.matrix);
+    return this;
   }
 
   translate(tx, ty, tz) {
